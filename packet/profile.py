@@ -1,6 +1,6 @@
 from argparse import Namespace
 from .raw import Raw
-from .blob import Resolution, BYTE
+from .blob import Resolution, BYTE, RGB
 from debug import validate
 
 MODE_FIRMWARE = 0x50
@@ -76,7 +76,7 @@ class Active(Base):
 
 # 0x51/0x52 0x2C
 class EffectSettings(Base):
-    """Used by all profiles.
+    """Used by all effects.
 
     Parameters
     ----------
@@ -94,13 +94,10 @@ class EffectSettings(Base):
         blob.writeBytes(self.p1)
         blob.writeBytes(self.p2)
         blob.writeBytes(self.p3)
-        blob.writeBytes(self.unknown_02)
-        blob.writeBytes(self.r_1)
-        blob.writeBytes(self.g_1)
-        blob.writeBytes(self.b_1)
-        blob.writeBytes(self.r_2)
-        blob.writeBytes(self.g_2)
-        blob.writeBytes(self.b_2)
+        blob.writeBytes(self.p4)
+        blob.writeBytes(self.p5)
+        blob.writeBytes(self.rgb_1)
+        blob.writeBytes(self.rgb_2)
         blob.writeBytes(self.padding)
 
     def decode(self, blob):
@@ -109,14 +106,39 @@ class EffectSettings(Base):
         self.p1 = blob.readByte()
         self.p2 = blob.readByte()
         self.p3 = blob.readByte()
-        self.unknown_02 = blob.readWord()
-        self.r_1 = blob.readByte()
-        self.g_1 = blob.readByte()
-        self.b_1 = blob.readByte()
-        self.r_2 = blob.readByte()
-        self.g_2 = blob.readByte()
-        self.b_2 = blob.readByte()
+        self.p4 = blob.readByte()
+        self.p5 = blob.readByte()
+        self.rgb_1 = RGB(blob.readBytes(3))
+        self.rgb_2 = RGB(blob.readBytes(3))
         self.padding = blob.readBytes(46)
+
+    def setParam(self, index: int, value: BYTE) -> None:
+        assert index >= 1 and index <= 5, "Index out of range"
+        setattr(self, "p%d" % index, value)
+
+    def getParam(self, index: int) -> BYTE:
+        assert index >= 1 and index <= 5, "Index out of range"
+        return getattr(self, "p%d" % index)
+
+    def orParam(self, index: int, value: BYTE) -> None:
+        assert index >= 1 and index <= 5, "Index out of range"
+        existing = getattr(self, "p%d" % index)
+        existing |= value
+        setattr(self, "p%d" % index, existing)
+
+    def notParam(self, index: int, value: BYTE) -> None:
+        assert index >= 1 and index <= 5, "Index out of range"
+        existing = getattr(self, "p%d" % index)
+        existing &= ~value
+        setattr(self, "p%d" % index, existing)
+
+    def setRGB(self, index: int, value: RGB) -> None:
+        assert index >= 1 and index <= 2, "Index out of range"
+        setattr(self, "rgb_%d" % index, value)
+
+    def getRGB(self, index: int) -> RGB:
+        assert index >= 1 and index <= 2, "Index out of range"
+        return getattr(self, "rgb_%d" % index)
 
 
 # 0x51/0x52 0xA0
