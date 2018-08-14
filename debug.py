@@ -1,29 +1,23 @@
 import inspect
 
 
-def get_caller(level=2):
+def get_caller(level: int = 2):
     stack = inspect.stack()
     frame = stack[level][0]
     (filename, line_number, function_name, lines, index) = inspect.getframeinfo(frame)
     return 'File "%s", line %d, in %s\n        %s' % (filename, line_number, function_name, lines[0].strip())
 
 
-def validate(value, expected, msg="Expected 0x%X, got 0x%X"):
+def validate(value, expected, msg: str = "Expected 0x%X, got 0x%X"):
     try:
         assert value == expected, msg % (value, expected)
     except AssertionError as err:
         print("%s\n    %s" % (err, get_caller()))
-        # stack = inspect.stack()
-        # frame = stack[1][0]
-        # (filename, line_number, function_name, lines, index) = inspect.getframeinfo(frame)
-        # msg = '%s\n  File "%s", line %d, in %s\n    %s' % (
-        #     err, filename, line_number, function_name, lines[0].strip())
-        # print(msg)
     finally:
         return value
 
 
-def type_check(value, types, throw=True):
+def validate_type(value, types, throw: bool = True):
     if isinstance(types, list):
         for _type in types:
             if isinstance(value, _type):
@@ -31,24 +25,46 @@ def type_check(value, types, throw=True):
         t = []
         for _type in types:
             t.append(_type.__name__)
-        msg = "Expected one of [%s], got %s" % (', '.join(t), type(value).__name__)
+        error = "Expected one of [%s], got %s" % (', '.join(t), type(value).__name__)
     elif isinstance(value, types):
         return True
     else:
-        msg = "Expected a %s, got %s" % (types.__name__, type(value).__name__)
-    msg = "%s\n    %s" % (msg, get_caller())
+        error = "Expected a %s, got %s" % (types.__name__, type(value).__name__)
+    error = "%s\n    %s" % (error, get_caller())
     if throw:
-        raise AssertionError(msg)
-    print(msg)
+        raise AssertionError(error)
+    print(error)
     return False
 
 
-def validate_range(value, min, max, throw=True) -> bool:
-    type_check(value, [int, float])
+def validate_range(value, min, max, throw: bool = True) -> bool:
+    validate_type(value, [int, float])
     if value >= min and value <= max:
         return True
-    msg = "Value (%d) out of range: %d - %d\n    %s" % (value, min, max, get_caller())
+    error = "Value (%d) out of range: %d - %d\n    %s" % (value, min, max, get_caller())
     if throw:
-        raise AssertionError(msg)
-    print(msg)
+        raise AssertionError(error)
+    print(error)
+    return False
+
+
+def validate_tuple(value, expected, throw: bool = True) -> bool:
+    validate_type(value, tuple)
+    validate_type(expected, tuple)
+    error = None
+    if len(value) == len(expected):
+        for key in range(len(value)):
+            if isinstance(value[key], expected[key]):
+                continue
+            error = "Expected offset %d to be %s, got %s" % (
+                key, type(value[key]).__name__, expected[key].__name__)
+            break
+    else:
+        error = "Expected length to be %d, got %d" % (len(expected), len(value))
+    if error is None:
+        return True
+    error = "%s\n    %s" % (error, get_caller())
+    if throw:
+        raise AssertionError(error)
+    print(error)
     return False

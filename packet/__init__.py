@@ -14,6 +14,8 @@ for module in os.listdir(path):
         field = name.capitalize()
 
         __import__(dir + '.' + name, locals(), globals())
-        setattr(tmp, field, getattr(getattr(sys.modules[__name__], name), field))
+        _module = getattr(sys.modules[__name__], name)
+        if hasattr(_module, field):
+            setattr(tmp, field, getattr(_module, field))
 
-del path, dir, module
+del path, dir, module, tmp

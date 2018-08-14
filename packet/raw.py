@@ -19,6 +19,7 @@ class Raw:
 
     def __init__(self, mode=None, operation=None, data=None, padChar=b'\x00'):
         self.padChar = padChar
+        self.padding = b''
         if data is None:
             assert mode is not None, "Expected 'mode' to be configured"
             assert operation is not None, "Expected 'operation' to be configured"
@@ -53,10 +54,10 @@ class Raw:
         else:
             self.operation = operation
 
-    def encode(self, blob):
+    def encode(self, blob: Blob) -> None:
         return
 
-    def decode(self, blob):
+    def decode(self, blob: Blob) -> None:
         """Reads the remaining 62 bytes of a 64 byte packet.
 
            Derived classes should implement this to populate fields.
@@ -77,21 +78,24 @@ class Raw:
             setattr(self, "dword%02d" % c, blob.readDword())
             c += 1
 
-    def to_blob(self):
+    def to_blob(self) -> Blob:
         blob = Blob(debug=False, padChar=self.padChar)
         blob.writeBytes(self.mode)
         blob.writeBytes(self.operation)
         # derived classes should implement this
         self.encode(blob)
+        if len(self.padding) > 0:
+            blob.writeBytes(self.padding)
         return blob
 
     def dump(self):
         self.to_blob().dump()
 
-    def update(self, byteStr):
+    def update(self, byteStr: bytes):
         blob = Blob(byteStr, padChar=self.padChar)
         self._setOperation(blob.readByte(), blob.readByte())
         self.decode(blob)
+        self.padding = blob.readBytes(blob.remain())
 
     def displayName(self):
         return 'Packet.Raw'

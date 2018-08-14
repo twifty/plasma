@@ -1,6 +1,7 @@
 from argparse import Namespace
 from .raw import Raw
-from .blob import Number, WORD
+from .blob import Blob
+from .types import WORD
 from debug import validate
 
 
@@ -10,7 +11,7 @@ MODE_READ = 0x42
 
 
 class Base(Raw):
-    def displayName(self):
+    def displayName(self) -> str:
         return 'Packet.Control.%s' % self.__class__.__name__
 
 
@@ -20,15 +21,15 @@ class Anon_00(Base):
     def __init__(self):
         super().__init__(MODE_READ, 0x00)
 
-        self.unknown_01 = Number(b'\x00\x00')
-        self.unknown_02 = Number(b'\x01\x00')
-        self.unknown_03 = Number(b'\x00\x01')
-        self.unknown_04 = Number(b'\x01\x00')
-        self.unknown_05 = Number(b'\x00\x00')
-        self.unknown_06 = Number(b'\x00\x00')
-        self.unknown_07 = Number(b'\x00\x00')
+        self.unknown_01 = WORD(b'\x00\x00')
+        self.unknown_02 = WORD(b'\x01\x00')
+        self.unknown_03 = WORD(b'\x00\x01')
+        self.unknown_04 = WORD(b'\x01\x00')
+        self.unknown_05 = WORD(b'\x00\x00')
+        self.unknown_06 = WORD(b'\x00\x00')
+        self.unknown_07 = WORD(b'\x00\x00')
 
-    def encode(self, blob):
+    def encode(self, blob: Blob) -> None:
         blob.writeBytes(self.unknown_01)
         blob.writeBytes(self.unknown_02)
         blob.writeBytes(self.unknown_03)
@@ -37,7 +38,7 @@ class Anon_00(Base):
         blob.writeBytes(self.unknown_06)
         blob.writeBytes(self.unknown_07)
 
-    def decode(self, blob):
+    def decode(self, blob: Blob) -> None:
         validate(blob.readWord(), self.unknown_01)
         validate(blob.readWord(), self.unknown_02)
         validate(blob.readWord(), self.unknown_03)
@@ -64,7 +65,7 @@ class EffectDetails(Base):
     def __init__(self):
         super().__init__(MODE_FIRMWARE, 0x20)
 
-    def decode(self, blob):
+    def decode(self, blob: Blob) -> None:
         self.unknown_01 = blob.readWord()   # 0x0000
         self.unknown_02 = blob.readWord()   # 0x0001
         self.unknown_03 = blob.readByte()   # 0x02
@@ -75,15 +76,15 @@ class EffectDetails(Base):
 
 # 0x40 0x21 - Used to return effect names (also a few flags)
 class EffectName(Base):
-    def __init__(self, index):
+    def __init__(self, index: int):
         super().__init__(MODE_FIRMWARE, 0x21)
 
         self.index = WORD(index)
 
-    def encode(self, blob):
+    def encode(self, blob: Blob) -> None:
         blob.writeBytes(self.index)
 
-    def decode(self, blob):
+    def decode(self, blob: Blob) -> None:
         validate(blob.readWord(), self.index)
         self.unknown_02 = blob.readDword()  # 0x00000329 - bit set
         self.name = blob.readBytes(56).decode('ascii')  # null terminated string

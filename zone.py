@@ -1,3 +1,8 @@
+from copy import deepcopy
+from .effects import Effect, Mirage, Static, Rainbow, Swirl, \
+    Chase, Bounce, Morse, Cycle, Breathing, Off
+from profile.types import BYTE
+
 
 class Caps():
     STATIC = 0x01
@@ -8,7 +13,19 @@ class Caps():
     MORSE = 0x20
     CYCLE = 0x40
     BREATHING = 0x80
-    MIRAGE = 0x100
+    OFF = 0x100
+
+    typeMap = {
+        'Caps'.STATIC: Static,
+        'Caps'.RAINBOW: Rainbow,
+        'Caps'.SWIRL: Swirl,
+        'Caps'.CHASE: Chase,
+        'Caps'.BOUNCE: Bounce,
+        'Caps'.MORSE: Morse,
+        'Caps'.CYCLE: Cycle,
+        'Caps'.BREATHING: Breathing,
+        'Caps'.OFF: Off
+    }
 
     def __init__(self, flags=0):
         self.flags = flags
@@ -37,25 +54,78 @@ class Caps():
     def Breathing(self) -> bool:
         return self.flags & Caps.BREATHING
 
-    def Mirage(self) -> bool:
-        return self.flags & Caps.MIRAGE
+    def Off(self) -> bool:
+        return self.flags & Caps.OFF
+
+    def validate(self, effect: Effect) -> bool:
+        for key in Caps.typeMap:
+            # NOTE ignore parent types here!
+            if key & self.flags and type(effect) == Caps.typeMap[key]:
+                return True
+        return False
 
 
 class Zone():
-    pass
+    def __init__(self, effect: Effect):
+        self._copyEffect(effect)
+
+    def _copyEffect(self, effect: Effect) -> None:
+        if not self.getCaps().validate(effect):
+            raise TypeError("Effect %s cannot be applied to zone %s." %
+                            (type(effect).__name__, type(self).__name__))
+        self.effect = deepcopy(effect)
+        self.effect.resetIds()  # Id and p3 sometimes differ between RGB and ARGB usage
+
+    def getCaps() -> Caps:
+        raise NotImplementedError("The developer got lazy and forgot to write a method body!")
+
+    def applyEffect(self, effect: Effect) -> None:
+        raise NotImplementedError("The developer got lazy and forgot to write a method body!")
 
 
+# Effect 0x00 0x07 0x0A 0x09 0x08 0x0B 0x02 0x01 (0xFE off)
 class Ring(Zone):
     def getCaps() -> Caps:
         return Caps(Caps.STATIC | Caps.RAINBOW | Caps.SWIRL | Caps.CHASE |
-                    Caps.BOUNCE | Caps.MORSE | Caps.CYCLE | Caps.BREATHING)
+                    Caps.BOUNCE | Caps.MORSE | Caps.CYCLE | Caps.BREATHING | Caps.OFF)
+
+    def applyEffect(self, effect: Effect) -> None:
+        self._copyEffect(effect)
 
 
+# Effect 0x06
 class Logo(Zone):
     def getCaps() -> Caps:
-        return Caps(Caps.STATIC | Caps.CYCLE | Caps.BREATHING)
+        return Caps(Caps.STATIC | Caps.CYCLE | Caps.BREATHING | Caps.OFF)
+
+    def _getId(self) -> BYTE:
+        return BYTE(0x06)
+
+    def applyEffect(self, effect: Effect) -> None:
+        self._copyEffect(effect)
+        settings = self.effect.getSettings()
+        if type(effect) == Off:
+            settings.setParam(3, BYTE(0))
+        elif type(effect) == Static:
+            settings.setParam(3, BYTE(1))
+        elif type(effect) == Cycle:
+            settings.setParam(3, BYTE(2))
+        elif type(effect) == Breathing:
+            settings.setParam(3, BYTE(3))
+        settings.setId(self._getId())
 
 
+# Effect 0x05
 class Fan(Logo):
-    def getCaps() -> Caps:
-        return Caps(Caps.STATIC | Caps.CYCLE | Caps.BREATHING | Caps.MIRAGE)
+    def __init__(self, effect: Effect, mirage: Mirage):
+        super().__init__(effect)
+        self.setMirage(mirage)
+
+    def _getId(self) -> BYTE:
+        return BYTE(0x05)
+
+    def getMirage(self) -> Mirage:
+        return self.mirage
+
+    def setMirage(self, mirage: Mirage):
+        self.mirage = deepcopy(mirage)
