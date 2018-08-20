@@ -8,47 +8,43 @@ MODE_FIRMWARE = 0x50
 MODE_WRITE = 0x51
 MODE_READ = 0x52
 
-"""
-    0x28 - Active effect/profile? Always 0xE0 and always sent before modifying values.
-    0x29
-    0x2C - Read/Write effect parameters
-    0x70 - Mirage RGB values
-    0x71 - Breathing settings?
-    0x73 - Morse code pages
-    0x94 - Contains three RGB triplets for Mirage (3 stored settings) These are in 45 - 2000 range
-    0x96 - Always follows 0x4103 or 0x4180, always zeros
-    0xA0 - Active effects (0x05 and 0x06 always seem to be active)
-"""
-
 
 class Base(Raw):
     def displayName(self) -> str:
         return 'Packet.Profile.%s' % self.__class__.__name__
 
 
-# 0x52 0x96
+# 0x52 0x96 0x00 0x00
 class Anon_96(Base):
     def __init__(self):
-        super().__init__(MODE_READ, 0x96)
+        super().__init__(MODE_READ, 0x96, 0x00, 0x00)
 
     def decode(self, blob: Blob) -> None:
         n = 0
-        while n < 31:
+        while n < 30:
             validate(blob.readWord(), 0x0000)
             n += 1
 
 
-# 0x52 0x29 - Read once during application start
+# 0x51 0x28 0x00 0x00 - Read once during application start
+class Anon_28(Base):
+    def __init__(self):
+        super().__init__(MODE_WRITE, 0x28, 0x00, 0x00)
+
+    def encode(self, blob: Blob) -> None:
+        blob.writeBytes(BYTE(0xE0))
+
+
+# 0x52 0x29 0x00 0x00 - Read once during application start
 class Anon_29(Base):
     def __init__(self):
-        super().__init__(MODE_READ, 0x29)
+        super().__init__(MODE_READ, 0x29, 0x00, 0x00)
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = validate(blob.readWord(0x0000))
-        self.unknown_02 = validate(blob.readWord(0x00E0))
+        self.unknown_01 = validate(blob.readWord(0x00E0))
 
 
-# 0x52/0x51 0x28 - The description could be wrong
+# 0x52/0x51 0x28 0x00 0x00 - The description could be wrong
 class Active(Base):
     """Stores the active profile ID.
 
@@ -62,20 +58,16 @@ class Active(Base):
     """
 
     def __init__(self, mode=MODE_WRITE):
-        super().__init__(mode, 0x28)
+        super().__init__(mode, 0x28, 0x00, 0x00)
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.unknown_01)
         blob.writeBytes(self.id)
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = validate(blob.readWord(), 0x0000)
         self.id = blob.readWord()  # This could easily be a byte
 
-        blob.readBytes(58)
 
-
-# 0x51/0x52 0x2C
+# 0x51/0x52 0x2C 0x01 0x00
 class EffectSettings(Base):
     """Used by all effects.
 
@@ -86,23 +78,23 @@ class EffectSettings(Base):
 
     """
 
-    def __init__(self, mode=MODE_WRITE):
-        super().__init__(mode, 0x2C)
+    def __init__(self, id: int, mode=MODE_WRITE):
+        super().__init__(mode, 0x2C, 0x01, 0x00)
+        self.id = BYTE(id)
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.unknown_01)
         blob.writeBytes(self.id)
-        blob.writeBytes(self.p1)
-        blob.writeBytes(self.p2)
-        blob.writeBytes(self.p3)
-        blob.writeBytes(self.p4)
-        blob.writeBytes(self.p5)
-        blob.writeBytes(self.rgb_1)
-        blob.writeBytes(self.rgb_2)
-        blob.writeBytes(self.padding)
+
+        if hasattr(self, 'p1'):
+            blob.writeBytes(self.p1)
+            blob.writeBytes(self.p2)
+            blob.writeBytes(self.p3)
+            blob.writeBytes(self.p4)
+            blob.writeBytes(self.p5)
+            blob.writeBytes(self.rgb_1)
+            blob.writeBytes(self.rgb_2)
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = validate(blob.readWord(), 0x0001)
         self.id = blob.readByte()
         self.p1 = blob.readByte()
         self.p2 = blob.readByte()
@@ -111,7 +103,6 @@ class EffectSettings(Base):
         self.p5 = blob.readByte()
         self.rgb_1 = RGB(blob.readBytes(3))
         self.rgb_2 = RGB(blob.readBytes(3))
-        self.padding = blob.readBytes(46)
 
     def setId(self, id: BYTE) -> None:
         self.id = id
@@ -148,16 +139,15 @@ class EffectSettings(Base):
         return getattr(self, "rgb_%d" % index)
 
 
-# 0x51/0x52 0xA0
+# 0x51/0x52 0xA0 0x01 0x00
 class ApplyActive(Base):
     def __init__(self, mode=MODE_WRITE):
-        super().__init__(mode, 0xA0)
+        super().__init__(mode, 0xA0, 0x01, 0x00)
 
     def encode(self, blob: Blob) -> None:
         return
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = validate(blob.readWord(), 0x0001)
         self.unknown_02 = validate(blob.readByte(), 0x00)
         self.count = validate(blob.readByte(), 0x03)  # Third entry will be 0xFE if disabled
         self.unknown_03 = validate(blob.readWord(), 0x0000)
@@ -169,7 +159,7 @@ class ApplyActive(Base):
         self.padding = blob.readBytes(53)
 
 
-# 0x51/0x52 0x70
+# 0x51/0x52 0x70 <index> <zone>
 class BreathPage(Base):
     """ Storage unit for breath cycle pages.
 
@@ -185,32 +175,24 @@ class BreathPage(Base):
         These pages are written during application startup.
     """
 
-    def __init__(self, zone, index, mode=MODE_WRITE):
-        self.zone = BYTE(zone)
-        self.index = BYTE(index)
+    def __init__(self, index, zone, mode=MODE_WRITE):
         self.data = None
-        super().__init__(mode, 0x70)
+        super().__init__(mode, 0x70, index, zone)
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.index)
-        blob.writeBytes(self.zone)
-
         if self.data is not None:
             blob.writeBytes(self.data)
 
     def decode(self, blob: Blob) -> None:
-        validate(blob.readByte(), self.index)
-        validate(blob.readByte(), self.zone)
         self.data = blob.readBytes(60)
 
 
-# 0x51/0x52 0x71
+# 0x51/0x52 0x71 0x00 0x00
 class MirageResolution(Base):
     def __init__(self, mode=MODE_WRITE):
-        super().__init__(mode, 0x71)
+        super().__init__(mode, 0x71, 0x00, 0x00)
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.unknown_01)
         blob.writeBytes(self.index_1)
         blob.writeBytes(self.off)
         blob.writeBytes(self.index_2)
@@ -219,11 +201,8 @@ class MirageResolution(Base):
         blob.writeBytes(self.res_g)
         blob.writeBytes(self.index_4)
         blob.writeBytes(self.res_b)
-        blob.writeBytes(self.padding)
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = validate(blob.readWord(), 0x0000)
-
         self.index_1 = validate(blob.readByte(), 0x01)
         self.off = Resolution(validate(blob.readBytes(3), b'\x00\xFF\x4A'))
         self.index_2 = validate(blob.readByte(), 0x02)
@@ -232,8 +211,6 @@ class MirageResolution(Base):
         self.res_g = Resolution(blob.readBytes(3))
         self.index_4 = validate(blob.readByte(), 0x04)
         self.res_b = Resolution(blob.readBytes(3))
-
-        self.padding = blob.readBytes(44)
 
     def getResolutions(self) -> tuple:
         return (
@@ -260,7 +237,7 @@ class MirageResolution(Base):
     #     return getattr(self, 'res_%s' % which)
 
 
-# 0x51/0x52 0x73
+# 0x51/0x52 0x73 <index> 0x00
 class MorsePage(Base):
     """Holds a single page of morse code data.
 
@@ -288,25 +265,23 @@ class MorsePage(Base):
 
     """
 
-    def __init__(self, mode=MODE_WRITE):
-        super().__init__(mode, 0x73)
+    def __init__(self, index: int, mode: int = MODE_WRITE):
+        super().__init__(mode, 0x73, index, 0x00)
+        self.data = b''
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.index)
         blob.writeBytes(self.data)
 
     def decode(self, blob: Blob) -> None:
-        self.index = blob.readWord()
         self.data = blob.readBytes(60)
 
 
-# 0x52 0x94
+# 0x52 0x94 0x00 0x00
 class MirageFrequencies(Base):
     def __init__(self):
-        super().__init__(MODE_READ, 0x94)
+        super().__init__(MODE_READ, 0x94, 0x00, 0x00)
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.unknown_01)
         blob.writeBytes(self.count)
         blob.writeBytes(self.r_1)
         blob.writeBytes(self.g_1)
@@ -319,7 +294,6 @@ class MirageFrequencies(Base):
         blob.writeBytes(self.b_3)
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = validate(blob.readWord(), 0x0000)
         self.count = validate(blob.readByte(), 0x03)
         self.r_1 = blob.readWord()
         self.g_1 = blob.readWord()
@@ -352,6 +326,7 @@ Profile = Namespace(
     MODE_READ=MODE_READ,
     MODE_WRITE=MODE_WRITE,
 
+    Anon_28=Anon_28,
     Anon_96=Anon_96,
     Anon_29=Anon_29,
 

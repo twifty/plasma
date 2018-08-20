@@ -1,1 +1,12 @@
 __pycache__
+*.o
+*~
+core
+.depend
+.*.cmd
+*.ko
+*.mod.c
+.tmp_versions
+*.symvers
+*.order
+*error.txt

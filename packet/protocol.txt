@@ -19,7 +19,7 @@
 041. 0x41 0x00 - Zeros (Is this zeroing out the memory before use?)
 043. 0x41 0x03 - Zeros
 045. 0x52 0x96 - Zeros
-047. 0x52 0x94 - Fetches Mirage values
+047. 0x52 0x94 - Fetches Mirage values (45 - 2000 ranges for all 3 memory slots)
 049. 0x52 0x28 - Fetches 0xe0 (perhaps to indicate an unsupported action?)
 052. 0x52 0x29 - Fetches 0xe0
 053. 0x51 0x28 - Sends 0xe0
@@ -32,22 +32,21 @@
   - 0x08 bounce
   - 0x0b morse
 
-067. 0x52 0x73 - <n> Fetches something - 0,2,4,6 have data, 1,3,5,7 empty
-  The bytes 0x73 is also used to apply morse.
-  Each appears to be a memory slot containing morse code hex.
+067. 0x52 0x73 - <n> Fetches morse pages
 
 083. 0x52 0x2c - Fetches effect parameters, 0x02 0x01
   All zones can use these effects
   - 0x02 cycle
   - 0x01 breath
 
-087. 0x52 0xa0 - Fetches something (0x05 and 0x06 seem prominent)
+087. 0x52 0xa0 - Fetches active zones (0x05 and 0x06 are always active)
   Could this be the active effects? 0xFE is in the third slot but it was disabled
 
-089. 0x52 0x2c - Fetches effect parameters for 0x06 then 0x05 (sent a total of 4 times, first packet contains a counter)
-  These are the non ARGB LEDs, but why request the data 4 times? The response is always the same.
-  Could this be related to the mirage setting?
-  The mirage controls
+089. 0x52 0x2c - Fetches effect parameters for 0x06 then 0x05 (sent a total of 4 times)
+	p3 for 0x06 (Fan) Contains a counter (1, 2, 3 then 0), always 1 for 0x05.
+	Always responded with 1 in p3, the remaining data is always the same.
+	p3 signifies which effect is being used.
+	Are different settings for each effect being stored for the fan, why not the logo?
 
 105. 0x41 0x80 - Zeros
 107. 0x51 0x96 - Zeros
@@ -64,7 +63,7 @@ The following is sent when switching tabs.
 123. 0x41 0x80 - Zeros
 125. 0x51 0x96 - Zeros
 127. 0x51 0x28 - Sends 0xe0
-129. 0x51 0x2c - Sends effect parameters, 0x06 0x07 0x00
+129. 0x51 0x2c - Sends effect parameters, 0x06 0x05 0x00
 135. 0x51 0xa0 - Sends 0x05 0x06 (Are these the previous effect ids?)
 137. 0x51 0x28 - Sends 0xe0
 

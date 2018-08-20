@@ -15,13 +15,12 @@ class Base(Raw):
         return 'Packet.Control.%s' % self.__class__.__name__
 
 
-# 0x42 0x00 - Write - zeros memory?
+# 0x42 0x00 0x00 0x00 - Write - zeros memory?
 class Anon_00(Base):
     # 42 00 00 00 01 00 00 01 01 00 00 00 00 00 00 00
     def __init__(self):
-        super().__init__(MODE_READ, 0x00)
+        super().__init__(MODE_READ, 0x00, 0x00, 0x00)
 
-        self.unknown_01 = WORD(b'\x00\x00')
         self.unknown_02 = WORD(b'\x01\x00')
         self.unknown_03 = WORD(b'\x00\x01')
         self.unknown_04 = WORD(b'\x01\x00')
@@ -30,7 +29,6 @@ class Anon_00(Base):
         self.unknown_07 = WORD(b'\x00\x00')
 
     def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.unknown_01)
         blob.writeBytes(self.unknown_02)
         blob.writeBytes(self.unknown_03)
         blob.writeBytes(self.unknown_04)
@@ -39,7 +37,6 @@ class Anon_00(Base):
         blob.writeBytes(self.unknown_07)
 
     def decode(self, blob: Blob) -> None:
-        validate(blob.readWord(), self.unknown_01)
         validate(blob.readWord(), self.unknown_02)
         validate(blob.readWord(), self.unknown_03)
         validate(blob.readWord(), self.unknown_04)
@@ -48,25 +45,24 @@ class Anon_00(Base):
         validate(blob.readWord(), self.unknown_07)
 
 
-# 0x41 0x00 - Read - once during app start (with data)
+# 0x41 0x00 0x00 0x00 - Read - once during app start (with data)
 class Reset(Base):
     def __init__(self):
-        super().__init__(MODE_WRITE, 0x00)
+        super().__init__(MODE_WRITE, 0x00, 0x00, 0x00)
 
 
-# 0x41 0x03 - Used during app start to read all settings, and "apply" to write changes
+# 0x41 0x03 0x00 0x00 - Used during app start to read all settings, and "apply" to write changes
 class Stored(Base):
     def __init__(self):
-        super().__init__(MODE_WRITE, 0x03)
+        super().__init__(MODE_WRITE, 0x03, 0x00, 0x00)
 
 
-# 0x40 0x20 - Used to fetch details about the effects
+# 0x40 0x20 0x00 0x00 - Used to fetch details about the effects
 class EffectDetails(Base):
     def __init__(self):
-        super().__init__(MODE_FIRMWARE, 0x20)
+        super().__init__(MODE_FIRMWARE, 0x20, 0x00, 0x00)
 
     def decode(self, blob: Blob) -> None:
-        self.unknown_01 = blob.readWord()   # 0x0000
         self.unknown_02 = blob.readWord()   # 0x0001
         self.unknown_03 = blob.readByte()   # 0x02
         self.count = blob.readByte()        # 0x000D (Num of effects)
@@ -74,26 +70,20 @@ class EffectDetails(Base):
         self.unknown_02 = blob.readDword()  # 0x00000001
 
 
-# 0x40 0x21 - Used to return effect names (also a few flags)
+# 0x40 0x21 <index> 0x00 - Used to return effect names (also a few flags)
 class EffectName(Base):
     def __init__(self, index: int):
-        super().__init__(MODE_FIRMWARE, 0x21)
-
-        self.index = WORD(index)
-
-    def encode(self, blob: Blob) -> None:
-        blob.writeBytes(self.index)
+        super().__init__(MODE_FIRMWARE, 0x21, index, 0x00)
 
     def decode(self, blob: Blob) -> None:
-        validate(blob.readWord(), self.index)
         self.unknown_02 = blob.readDword()  # 0x00000329 - bit set
         self.name = blob.readBytes(56).decode('ascii')  # null terminated string
 
 
-# 0x41 0x80 - Used any time the active effect is changed
+# 0x41 0x80 0x00 0x00 - Used any time the active effect is changed
 class Active(Base):
     def __init__(self):
-        super().__init__(MODE_WRITE, 0x80)
+        super().__init__(MODE_WRITE, 0x80, 0x00, 0x00)
 
 
 Control = Namespace(

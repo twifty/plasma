@@ -10,15 +10,14 @@ class Base(Raw):
         return 'Packet.Firmware.%s' % self.__class__.__name__
 
 
-# 0x12 0x00 - Firmware details
+# 0x12 0x00 0x00 0x00 - Firmware details
 class Query(Base):
     def __init__(self):
-        super().__init__(MODE_READ, 0x00)
+        super().__init__(MODE_READ, 0x00, 0x00, 0x00)
 
     def decode(self, blob):
-        self.flags = validate(blob.readWord(), 0x00000004)
+        self.flags = validate(blob.readDword(), 0x00000004)
         self.unknown_01 = validate(blob.readDword(), 0x00000000)
-        self.unknown_02 = validate(blob.readDword(), 0x00000000)
         self.vendorId = validate(blob.readWord(), 0x2516)
         self.productId = validate(blob.readWord(), 0x0052)
         self.unknown_03 = validate(blob.readDword(), 0x04087000)
@@ -28,50 +27,47 @@ class Query(Base):
         self.unknown_07 = validate(blob.readDword(), 0x000000E0)
         self.unknown_08 = validate(blob.readDword(), 0x00E70200)
         self.unknown_09 = validate(blob.readWord(), 0x0200)
-        self.firmwareName = validate(blob.readBytes(10).decode('ascii'), 'LM0303')
+        value = blob.readBytes(10).decode('utf-8').rstrip('\0')
+        self.firmwareName = validate(value, 'LM0303')
         self.unknown_12 = validate(blob.readDword(), 0xFFFFFFFF)
         self.unknown_13 = validate(blob.readDword(), 0x00000000)
         self.unknown_14 = validate(blob.readDword(), 0x00000000)
 
 
-# 0x12 0x20 - The firmware version string
+# 0x12 0x20 0x00 0x00 - The firmware version string
 class Version(Base):
     def __init__(self):
-        super().__init__(MODE_READ, 0x20)
+        super().__init__(MODE_READ, 0x20, 0x00, 0x00)
 
     def decode(self, blob):
-        self.flags = validate(blob.readWord(), 0x0000)
         self.size = validate(blob.readDword(), 0x0000001A)
 
         if self.size > 0:
-            self.versionStr = validate(blob.readBytes(self.size).decode('utf16'), u'V1.01.00')
+            value = blob.readBytes(self.size).decode('utf-16le').rstrip('\0')
+            self.versionStr = validate(value, u'V1.01.00')
         else:
             self.versionStr = ''
 
         blob.readBytes(64 - (8 + self.size))
 
 
-# 0x12 0x01 - Contains some flags
+# 0x12 0x01 0x00 0x00 - Contains some flags
 class Anon_01(Base):
     # 0x12, 0x01, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00,
     def __init__(self):
-        super().__init__(MODE_READ, 0x01)
+        super().__init__(MODE_READ, 0x01, 0x00, 0x00)
 
     def decode(self, blob):
-        self.unknown_01 = validate(blob.readWord(), 0x0000)
         self.unknown_02 = validate(blob.readWord(), 0x0004)
         self.unknown_03 = validate(blob.readWord(), 0x0002)
 
-        blob.readBytes(56)
 
-
-# 0x12 0x22 - More firmware parameters
+# 0x12 0x22 0x00 0x00 - More firmware parameters
 class Anon_22(Base):
     def __init__(self):
-        super().__init__(MODE_READ, 0x22)
+        super().__init__(MODE_READ, 0x22, 0x00, 0x00)
 
     def decode(self, blob):
-        self.unknown_01 = validate(blob.readWord(), 0x0000)
         self.unknown_02 = validate(blob.readWord(), 0x0004)
         self.unknown_03 = validate(blob.readWord(), 0x0080)
         self.unknown_04 = validate(blob.readWord(), 0x0100)

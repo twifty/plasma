@@ -74,6 +74,4 @@ class Driver:
         if len(response) is not 64:
             raise IOError("Expected a 64 byte response, got %d" % len(response))
 
-        request.update(bytes(response))
-
-        return request
+        return request.update(bytes(response))

@@ -268,7 +268,7 @@ class Rainbow(Effect):
 
 
 class Cycle(Rainbow):
-    # When used in the Ring zone, p3 is always 0xFF; 0x01 in the RGB zones
+    # When used in the Ring zone, p3 is always 0xFF; 0x02 in the RGB zones
     SPEED_PROFILE = 3
     BRIGHTNESS_PROFILE = 1
 

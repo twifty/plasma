@@ -1,5 +1,5 @@
 from .types import Number, BYTE, WORD, DWORD, BYTESTR
-from debug import validate_type
+from debug import validate_type, validate_length, validate_range, validate_lower
 
 
 class Blob:
@@ -14,8 +14,10 @@ class Blob:
 
     def __init__(self, byteStr=None, padChar=None, debug=True):
         if byteStr is not None:
-            assert isinstance(byteStr, bytes), 'Expected 64 bytes, got %s.' % type(byteStr)
-            assert len(byteStr) is 64, 'Expected 64 bytes, got %s.' % len(byteStr)
+            validate_type(byteStr, bytes)
+            validate_length(byteStr, 64)
+            # assert isinstance(byteStr, bytes), 'Expected 64 bytes, got %s.' % type(byteStr)
+            # assert len(byteStr) is 64, 'Expected 64 bytes, got %s.' % len(byteStr)
 
             self.data = byteStr
             self.size = 64
@@ -56,7 +58,7 @@ class Blob:
             print("")
         print("]")
 
-    def readBytes(self, numBytes) -> bytes:
+    def readBytes(self, numBytes: int) -> bytes:
         """Reads and returns numBytes of raw data.
 
         Parameters
@@ -78,8 +80,8 @@ class Blob:
 
         end = self.offset + numBytes
 
-        assert numBytes > 0 and numBytes < 64, 'numBytes must be within the range 0-63, got %d.' % numBytes
-        assert end <= 64, 'unable to read %d bytes, only %d remain.' % (numBytes, 64 - self.offset)
+        validate_range(numBytes, 1, 63, msg='numBytes must be within the range 0-63, got $0.')
+        validate_lower(end, 65, msg='unable to read $0 bytes, only %d remain.' % (64 - self.offset))
 
         str = self.data[self.offset:end]
         self.offset = end
@@ -158,7 +160,7 @@ class Blob:
 
         c = len(byteStr)
         assert self.size + \
-            c < 64, 'Not enough remaining space (%d bytes) to write (%d bytes)' % (
+            c <= 64, 'Not enough remaining space (%d bytes) to write (%d bytes)' % (
                 64 - self.size, c)
 
         self.data += byteStr

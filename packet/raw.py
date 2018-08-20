@@ -17,42 +17,58 @@ class Raw:
     mode = None
     operation = None
 
-    def __init__(self, mode=None, operation=None, data=None, padChar=b'\x00'):
+    def __init__(self, mode: int = None, operation: int = None, index: int = None, flags: int = None,
+                 data: bytes = None, padChar: bytes = b'\x00'):
         self.padChar = padChar
         self.padding = b''
-        if data is None:
-            assert mode is not None, "Expected 'mode' to be configured"
-            assert operation is not None, "Expected 'operation' to be configured"
-            self.mode = BYTE(mode)
-            self.operation = BYTE(operation)
-        else:
+
+        if data is not None and len(data) >= 4:
+            if mode is None:
+                mode = data[0]
+            if operation is None:
+                operation = data[1]
+            if index is None:
+                index = data[2]
+            if flags is None:
+                flags = data[3]
+
+        assert mode is not None, "Expected 'mode' to be configured"
+        assert operation is not None, "Expected 'operation' to be configured"
+        assert index is not None, "Expected 'index' to be configured"
+        assert flags is not None, "Expected 'flags' to be configured"
+
+        self.mode = BYTE(mode)
+        self.operation = BYTE(operation)
+        self.index = BYTE(index)
+        self.flags = BYTE(flags)
+
+        if data is not None:
             self.update(data)
 
-    def _setOperation(self, mode, operation):
-        """Sets or validates the mode and operation bytes.
+    def setMode(self, mode: int) -> None:
+        self.mode = BYTE(mode)
 
-        Parameters
-        ----------
-        mode : byte
-            The first byte in a packet.
-        operation : byte
-            The second byte in a packet.
-
-        Raises
-        -------
-        AssertionError
-            If the bytes don't match the previously configured.
-
-        """
+    def readHeader(self, blob: Blob) -> None:
         if self.mode is not None:
-            validate(mode, self.mode, 'Mode missmatch - expected %02X, got %02X')
+            validate(blob.readByte(), self.mode, 'Mode missmatch - expected $1, got $0')
         else:
-            self.mode = mode
+            self.mode = blob.readByte()
 
         if self.operation is not None:
-            validate(operation, self.operation, 'Operation missmatch - expected %02X, got %02X')
+            validate(blob.readByte(), self.operation,
+                     'Operation missmatch - expected $1, got $0')
         else:
-            self.operation = operation
+            self.operation = blob.readByte()
+
+        if self.index is not None:
+            validate(blob.readByte(), self.index, 'Index missmatch - expected $1, got $0')
+        else:
+            self.index = blob.readByte()
+
+        if self.flags is not None:
+            validate(blob.readByte(), self.flags, 'Flags missmatch - expected $1, got $0')
+        else:
+            self.flags = blob.readByte()
 
     def encode(self, blob: Blob) -> None:
         return
@@ -82,6 +98,8 @@ class Raw:
         blob = Blob(debug=False, padChar=self.padChar)
         blob.writeBytes(self.mode)
         blob.writeBytes(self.operation)
+        blob.writeBytes(self.index)
+        blob.writeBytes(self.flags)
         # derived classes should implement this
         self.encode(blob)
         if len(self.padding) > 0:
@@ -93,9 +111,17 @@ class Raw:
 
     def update(self, byteStr: bytes):
         blob = Blob(byteStr, padChar=self.padChar)
-        self._setOperation(blob.readByte(), blob.readByte())
-        self.decode(blob)
-        self.padding = blob.readBytes(blob.remain())
+        try:
+            self.readHeader(blob)
+            self.decode(blob)
+            if blob.remain() > 0:
+                self.padding = blob.readBytes(blob.remain())
+        except AssertionError as error:
+            print(error)
+            blob.debug = False  # suppress the __del__ error checking
+            blob.dump()
+            return ErrorResponse(byteStr)
+        return self
 
     def displayName(self):
         return 'Packet.Raw'
@@ -113,7 +139,21 @@ class Raw:
         # str = 'Packet.%s(' % self.__class__.__name__
         str = '%s(' % self.displayName()
         for field in self.__dict__:
-            if field == 'padChar':
+            if field in ['padChar', 'padding']:
                 continue
             str += "\n    %s: %s" % (field, getattr(self, field))
         return str + "\n)"
+
+
+class ErrorResponse(Raw):
+    def __init__(self, data: bytes):
+        super().__init__(data=data)
+
+    def displayName(self):
+        return 'Packet.ErrorResponse'
+
+    def decode(self, blob: Blob) -> None:
+        self.prev_mode = blob.readByte()
+        self.prev_operation = blob.readByte()
+        self.prev_index = blob.readByte()
+        self.prev_flags = blob.readByte()

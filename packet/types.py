@@ -1,4 +1,5 @@
 from struct import unpack
+from debug import validate_type, validate_length
 
 
 class BYTESTR:
@@ -40,8 +41,10 @@ class Resolution(BYTESTR):
         return int(48000000 / self.value)
 
     def decode(value) -> int:
-        assert isinstance(value, bytes), "Expected a bytes array, got %s" % type(value)
-        assert len(value) == 3, "Expected 3 bytes, got %d" % len(value)
+        validate_type(value, bytes)
+        validate_length(value, 3)
+        # assert isinstance(value, bytes), "Expected a bytes array, got %s" % type(value)
+        # assert len(value) == 3, "Expected 3 bytes, got %d" % len(value)
 
         (hi, lo) = unpack('BH', value)
 
@@ -93,20 +96,22 @@ class RGB(BYTESTR):
 
     def __init__(self, r, g=None, b=None):
         if isinstance(r, int):
-            assert isinstance(g, int), "Expected an int, got %s" % type(g)
-            assert isinstance(b, int), "Expected an int, got %s" % type(b)
+            validate_type(g, int)
+            validate_type(b, int)
             assert r >= 0x00 and r <= 0xFF, "Colors values must be in the range 0-255, got %d." % r
             assert g >= 0x00 and r <= 0xFF, "Colors values must be in the range 0-255, got %d." % g
             assert b >= 0x00 and r <= 0xFF, "Colors values must be in the range 0-255, got %d." % b
             self.value = r.to_bytes(1, 'little') + g.to_bytes(1, 'little') + b.to_bytes(1, 'little')
         elif isinstance(r, bytes):
-            assert len(r) == 3, "Expected exactly 3 bytes, got %d." % len(r)
+            validate_length(r, 3)
+            # assert len(r) == 3, "Expected exactly 3 bytes, got %d." % len(r)
             self.value = r
         else:
-            raise AssertionError("Expected ints or a bytes string, got %s." % type(r))
+            raise AssertionError("Expected ints or a bytes string, got %s." % type(r).__name__)
 
     def __str__(self):
-        return "Red = 0x%02X, Green = 0x%02X, Blue = 0x%02X" % (self.value[:1], self.value[1:2], self.value[2:])
+        return "Red = 0x%02X, Green = 0x%02X, Blue = 0x%02X" % (
+            ord(self.value[:1]), ord(self.value[1:2]), ord(self.value[2:]))
 
     def __bytes__(self):
         return self.value
@@ -129,10 +134,11 @@ class Number(int):
 
     """
 
-    def __new__(self, byteStr, size=None):
-        if size is None:
-            assert isinstance(byteStr, bytes), "Expected a byte string, got %s" % type(byteStr)
-            size = len(byteStr)
+    def __new__(self, byteStr, size: int = None):
+        if type(byteStr) == bytes:
+            # validate_type(byteStr, bytes)
+            if size is None:
+                size = len(byteStr)
             if size is 1:
                 value = ord(byteStr)
             elif size is 2:
@@ -142,7 +148,7 @@ class Number(int):
             else:
                 raise RuntimeError('Invalid byte length: %d' % size)
         else:
-            assert isinstance(byteStr, int), "Expected an int, got %s" % type(byteStr)
+            validate_type(byteStr, int)
             if size is 1:
                 value = byteStr & 0xff
             elif size is 2:

@@ -3,21 +3,29 @@ import inspect
 
 def get_caller(level: int = 2):
     stack = inspect.stack()
-    frame = stack[level][0]
-    (filename, line_number, function_name, lines, index) = inspect.getframeinfo(frame)
-    return 'File "%s", line %d, in %s\n        %s' % (filename, line_number, function_name, lines[0].strip())
+    curr = len(stack) - 1
+    history = []
+    while curr >= level:
+        frame = stack[curr][0]
+        (filename, line_number, function_name, lines, index) = inspect.getframeinfo(frame)
+        history.append('    File "%s", line %d, in %s' % (filename, line_number, function_name))
+        curr -= 1
+
+    return '\n'.join(history) + '\n        %s' % lines[0].strip()
 
 
-def validate(value, expected, msg: str = "Expected 0x%X, got 0x%X"):
-    try:
-        assert value == expected, msg % (value, expected)
-    except AssertionError as err:
-        print("%s\n    %s" % (err, get_caller()))
-    finally:
-        return value
+def validate(value, expected, msg: str = "Expected $1, got $0"):
+    if value != expected:
+        error = msg + "\n" + get_caller()
+        error = error.replace('$0', str(value))
+        error = error.replace('$1', str(expected))
+
+        raise AssertionError(error)
+
+    return value
 
 
-def validate_type(value, types, throw: bool = True):
+def validate_type(value, types, throw: bool = True, msg: str = "Expected $1, got $0"):
     if isinstance(types, list):
         for _type in types:
             if isinstance(value, _type):
@@ -25,46 +33,108 @@ def validate_type(value, types, throw: bool = True):
         t = []
         for _type in types:
             t.append(_type.__name__)
-        error = "Expected one of [%s], got %s" % (', '.join(t), type(value).__name__)
+        expected = '[' + ', '.join(t) + ']'
     elif isinstance(value, types):
         return True
     else:
-        error = "Expected a %s, got %s" % (types.__name__, type(value).__name__)
-    error = "%s\n    %s" % (error, get_caller())
+        expected = types.__name__
+
+    error = msg + "\n" + get_caller()
+    error = error.replace('$0', type(value).__name__)
+    error = error.replace('$1', expected)
+
     if throw:
         raise AssertionError(error)
+
     print(error)
     return False
 
 
-def validate_range(value, min, max, throw: bool = True) -> bool:
+def validate_range(value, min, max, throw: bool = True, msg: str = "Value ($0) out of range: $1 - $2") -> bool:
     validate_type(value, [int, float])
     if value >= min and value <= max:
         return True
-    error = "Value (%d) out of range: %d - %d\n    %s" % (value, min, max, get_caller())
+
+    error = msg + "\n" + get_caller()
+    error = error.replace('$0', str(value))
+    error = error.replace('$1', str(min))
+    error = error.replace('$2', str(max))
+
     if throw:
         raise AssertionError(error)
+
     print(error)
     return False
 
 
-def validate_tuple(value, expected, throw: bool = True) -> bool:
-    validate_type(value, tuple)
-    validate_type(expected, tuple)
-    error = None
-    if len(value) == len(expected):
-        for key in range(len(value)):
-            if isinstance(value[key], expected[key]):
-                continue
-            error = "Expected offset %d to be %s, got %s" % (
-                key, type(value[key]).__name__, expected[key].__name__)
-            break
-    else:
-        error = "Expected length to be %d, got %d" % (len(expected), len(value))
-    if error is None:
+def validate_lower(value, target, throw: bool = True, msg: str = "Value ($0) out of range: X - $1") -> bool:
+    validate_type(value, [int, float])
+    if value < target:
         return True
-    error = "%s\n    %s" % (error, get_caller())
+
+    error = msg + "\n" + get_caller()
+    error = error.replace('$0', str(value))
+    error = error.replace('$1', str(target))
+
     if throw:
         raise AssertionError(error)
+
+    print(error)
+    return False
+
+
+def validate_higher(value, target, throw: bool = True, msg: str = "Value ($0) out of range: X - $1") -> bool:
+    validate_type(value, [int, float])
+    if value > target:
+        return True
+
+    error = msg + "\n" + get_caller()
+    error = error.replace('$0', str(value))
+    error = error.replace('$1', str(target))
+
+    if throw:
+        raise AssertionError(error)
+
+    print(error)
+    return False
+
+
+def validate_tuple(value, expected, throw: bool = True, msg: str = "Expected offset $3 to be $0, got $1") -> bool:
+    validate_type(value, tuple)
+    validate_type(expected, tuple)
+    validate_length(value, len(expected), level=3)
+    error = None
+    for key in range(len(value)):
+        if isinstance(value[key], expected[key]):
+            continue
+
+        error = msg + "\n" + get_caller()
+        error = error.replace('$0', type(value[key]).__name__)
+        error = error.replace('$1', expected[key].__name__)
+        error = error.replace('$2', str(key))
+
+        break
+
+    if error is None:
+        return True
+    if throw:
+        raise AssertionError(error)
+
+    print(error)
+    return False
+
+
+def validate_length(value, expected: int, throw: bool = True,
+                    msg: str = "Expected length to be $1, got $0", level: int = 2) -> bool:
+    if len(value) == expected:
+        return True
+
+    error = msg + "\n" + get_caller()
+    error = error.replace('$0', str(len(value)))
+    error = error.replace('$1', str(expected))
+
+    if throw:
+        raise AssertionError(error)
+
     print(error)
     return False

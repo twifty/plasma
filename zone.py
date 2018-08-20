@@ -1,7 +1,7 @@
 from copy import deepcopy
-from .effects import Effect, Mirage, Static, Rainbow, Swirl, \
+from effects import Effect, Mirage, Static, Rainbow, Swirl, \
     Chase, Bounce, Morse, Cycle, Breathing, Off
-from profile.types import BYTE
+from packet.types import BYTE
 
 
 class Caps():
@@ -14,18 +14,6 @@ class Caps():
     CYCLE = 0x40
     BREATHING = 0x80
     OFF = 0x100
-
-    typeMap = {
-        'Caps'.STATIC: Static,
-        'Caps'.RAINBOW: Rainbow,
-        'Caps'.SWIRL: Swirl,
-        'Caps'.CHASE: Chase,
-        'Caps'.BOUNCE: Bounce,
-        'Caps'.MORSE: Morse,
-        'Caps'.CYCLE: Cycle,
-        'Caps'.BREATHING: Breathing,
-        'Caps'.OFF: Off
-    }
 
     def __init__(self, flags=0):
         self.flags = flags
@@ -65,6 +53,19 @@ class Caps():
         return False
 
 
+Caps.typeMap = {
+    Caps.STATIC: Static,
+    Caps.RAINBOW: Rainbow,
+    Caps.SWIRL: Swirl,
+    Caps.CHASE: Chase,
+    Caps.BOUNCE: Bounce,
+    Caps.MORSE: Morse,
+    Caps.CYCLE: Cycle,
+    Caps.BREATHING: Breathing,
+    Caps.OFF: Off
+}
+
+
 class Zone():
     def __init__(self, effect: Effect):
         self._copyEffect(effect)
@@ -76,7 +77,7 @@ class Zone():
         self.effect = deepcopy(effect)
         self.effect.resetIds()  # Id and p3 sometimes differ between RGB and ARGB usage
 
-    def getCaps() -> Caps:
+    def getCaps(self) -> Caps:
         raise NotImplementedError("The developer got lazy and forgot to write a method body!")
 
     def applyEffect(self, effect: Effect) -> None:
@@ -85,7 +86,7 @@ class Zone():
 
 # Effect 0x00 0x07 0x0A 0x09 0x08 0x0B 0x02 0x01 (0xFE off)
 class Ring(Zone):
-    def getCaps() -> Caps:
+    def getCaps(self) -> Caps:
         return Caps(Caps.STATIC | Caps.RAINBOW | Caps.SWIRL | Caps.CHASE |
                     Caps.BOUNCE | Caps.MORSE | Caps.CYCLE | Caps.BREATHING | Caps.OFF)
 
@@ -95,7 +96,7 @@ class Ring(Zone):
 
 # Effect 0x06
 class Logo(Zone):
-    def getCaps() -> Caps:
+    def getCaps(self) -> Caps:
         return Caps(Caps.STATIC | Caps.CYCLE | Caps.BREATHING | Caps.OFF)
 
     def _getId(self) -> BYTE:
@@ -116,8 +117,9 @@ class Logo(Zone):
 
 
 # Effect 0x05
+# NOTE packet 0x94 is wrong (see c code)
 class Fan(Logo):
-    def __init__(self, effect: Effect, mirage: Mirage):
+    def __init__(self, effect: Effect, mirage: Mirage = None):
         super().__init__(effect)
         self.setMirage(mirage)
 
